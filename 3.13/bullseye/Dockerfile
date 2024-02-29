@@ -16,6 +16,7 @@ RUN set -eux; \
 		libbluetooth-dev \
 		tk-dev \
 		uuid-dev \
+		systemtap-sdt-dev \
 	; \
 	rm -rf /var/lib/apt/lists/*
 
@@ -45,6 +46,8 @@ RUN set -eux; \
 		--enable-optimizations \
 		--enable-option-checking=fatal \
 		--enable-shared \
+		--with-pydebug \
+		--with-dtrace \
 		--with-lto \
 		--with-ensurepip \
 	; \
