@@ -72,15 +72,20 @@ jobs:
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
       - name: Push Docker Images
         run: |
-          docker tag docker-python:3.11.11-slim-bullseye luislhl/docker-python:3.11-slim-bullseye
-          docker push docker-python:3.11.11-slim-bullseye
-          docker tag docker-python:3.11.11-bullseye luislhl/docker-python:3.11-bullseye
-          docker push docker-python:3.11.11-bullseye
-          docker tag docker-python:3.12.8-slim-bullseye luislhl/docker-python:3.12-slim-bullseye
-          docker push docker-python:3.12.8-slim-bullseye
-          docker tag docker-python:3.12.8-bullseye luislhl/docker-python:3.12-bullseye
-          docker push docker-python:3.12.8-bullseye
-          docker tag docker-python:3.13.1-slim-bullseye luislhl/docker-python:3.13-slim-bullseye
-          docker push docker-python:3.13.1-slim-bullseye
-          docker tag docker-python:3.13.1-bullseye luislhl/docker-python:3.13-bullseye
-          docker push docker-python:3.13.1-bullseye
+          # Define the image marker
+          IMAGE_MARKER="image-list-marker"
+
+          # Get the list of images since the specified marker
+          IMAGES=$(docker image ls --filter "since=$IMAGE_MARKER" --format "{{.Repository}}:{{.Tag}}")
+
+          # Loop through the images and push them with the "luislhl/" prefix
+          for IMAGE in $IMAGES; do
+              # Add the prefix to the image
+              PREFIXED_IMAGE="luislhl/$IMAGE"
+
+              # Tag the image with the new prefixed name
+              docker tag "$IMAGE" "$PREFIXED_IMAGE"
+
+              # Push the prefixed image
+              docker push "$PREFIXED_IMAGE"
+          done
