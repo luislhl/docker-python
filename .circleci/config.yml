@@ -4,7 +4,7 @@ executors:
   docker-arm64:
     docker:
       - image: circleci/python:3.10
-    resource_class: arm.medium
+    resource_class: arm.large
 
 jobs:
   build-and-push:

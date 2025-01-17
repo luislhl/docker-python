@@ -4,7 +4,7 @@
 # PLEASE DO NOT EDIT IT DIRECTLY.
 #
 
-FROM alpine:3.21
+FROM debian:bullseye-slim
 
 # ensure local python is preferred over distribution python
 ENV PATH /usr/local/bin:$PATH
@@ -16,10 +16,13 @@ ENV LANG C.UTF-8
 
 # runtime dependencies
 RUN set -eux; \
-	apk add --no-cache \
+	apt-get update; \
+	apt-get install -y --no-install-recommends \
 		ca-certificates \
+		netbase \
 		tzdata \
-	;
+	; \
+	rm -rf /var/lib/apt/lists/*
 
 ENV GPG_KEY A035C8C19219BA821ECEA86B64E628F8D684696D
 ENV PYTHON_VERSION 3.10.16
@@ -27,34 +30,30 @@ ENV PYTHON_SHA256 bfb249609990220491a1b92850a07135ed0831e41738cf681d63cf01b2a8fb
 
 RUN set -eux; \
 	\
-	apk add --no-cache --virtual .build-deps \
-		gnupg \
-		tar \
-		xz \
-		\
-		bluez-dev \
-		bzip2-dev \
-		dpkg-dev dpkg \
-		findutils \
+	savedAptMark="$(apt-mark showmanual)"; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends \
+		dpkg-dev \
 		gcc \
-		gdbm-dev \
-		libc-dev \
+		gnupg \
+		libbluetooth-dev \
+		libbz2-dev \
+		libc6-dev \
+		libdb-dev \
 		libffi-dev \
-		libnsl-dev \
-		libtirpc-dev \
-		linux-headers \
+		libgdbm-dev \
+		liblzma-dev \
+		libncursesw5-dev \
+		libreadline-dev \
+		libsqlite3-dev \
+		libssl-dev \
 		make \
-		ncurses-dev \
-		openssl-dev \
-		pax-utils \
-		readline-dev \
-		sqlite-dev \
-		tcl-dev \
-		tk \
 		tk-dev \
-		util-linux-dev \
-		xz-dev \
-		zlib-dev \
+		uuid-dev \
+		wget \
+		xz-utils \
+		zlib1g-dev \
+		systemtap-sdt-dev \
 	; \
 	\
 	wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz"; \
@@ -74,6 +73,7 @@ RUN set -eux; \
 	./configure \
 		--build="$gnuArch" \
 		--enable-loadable-sqlite-extensions \
+		--enable-optimizations \
 		--enable-option-checking=fatal \
 		--enable-shared \
 		--with-pydebug \
@@ -82,9 +82,8 @@ RUN set -eux; \
 		--with-ensurepip \
 	; \
 	nproc="$(nproc)"; \
-# set thread stack size to 1MB so we don't segfault before we hit sys.getrecursionlimit()
-# https://github.com/alpinelinux/aports/commit/2026e1259422d4e0cf92391ca2d3844356c649d0
-	EXTRA_CFLAGS="-DTHREAD_STACK_SIZE=0x100000"; \
+	EXTRA_CFLAGS="$(dpkg-buildflags --get CFLAGS)"; \
+	LDFLAGS="$(dpkg-buildflags --get LDFLAGS)"; \
 	make -j "$nproc" \
 		"EXTRA_CFLAGS=${EXTRA_CFLAGS:-}" \
 		"LDFLAGS=${LDFLAGS:-}" \
@@ -115,13 +114,20 @@ RUN set -eux; \
 		\) -exec rm -rf '{}' + \
 	; \
 	\
-	find /usr/local -type f -executable -not \( -name '*tkinter*' \) -exec scanelf --needed --nobanner --format '%n#p' '{}' ';' \
-		| tr ',' '\n' \
+	ldconfig; \
+	\
+	apt-mark auto '.*' > /dev/null; \
+	apt-mark manual $savedAptMark; \
+	find /usr/local -type f -executable -not \( -name '*tkinter*' \) -exec ldd '{}' ';' \
+		| awk '/=>/ { so = $(NF-1); if (index(so, "/usr/local/") == 1) { next }; gsub("^/(usr/)?", "", so); printf "*%s\n", so }' \
 		| sort -u \
-		| awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
-		| xargs -rt apk add --no-network --virtual .python-rundeps \
+		| xargs -r dpkg-query --search \
+		| cut -d: -f1 \
+		| sort -u \
+		| xargs -r apt-mark manual \
 	; \
-	apk del --no-network .build-deps; \
+	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+	rm -rf /var/lib/apt/lists/*; \
 	\
 	export PYTHONDONTWRITEBYTECODE=1; \
 	python3 --version; \
