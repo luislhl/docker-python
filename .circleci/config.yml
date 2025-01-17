@@ -1,0 +1,35 @@
+version: 2.1
+
+executors:
+  docker-arm64:
+    docker:
+      - image: circleci/python:3.10
+    resource_class: arm.medium
+
+jobs:
+  build-and-push:
+    executor: docker-arm64
+    environment:
+      DOCKER_IMAGE: "luislhl/docker-python"
+      PLATFORM: "linux/arm64"
+      DOCKERFILE_PATH: "./3.10/slim-bullseye/Dockerfile"
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 20.10.7
+      - run:
+          name: Login to Docker Hub
+          command: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+      - run:
+          name: Build Docker Image
+          command: |
+            docker build --platform $PLATFORM -f $DOCKERFILE_PATH -t $DOCKER_IMAGE:3.10-slim-bullseye .
+      - run:
+          name: Push Docker Image
+          command: docker push $DOCKER_IMAGE:3.10-slim-bullseye
+
+workflows:
+  version: 2
+  build-and-push-workflow:
+    jobs:
+      - build-and-push
