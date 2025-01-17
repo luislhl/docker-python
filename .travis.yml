@@ -1,0 +1,23 @@
+language: python
+
+python:
+  - "3.10"
+
+services:
+  - docker
+
+env:
+  global:
+    - DOCKER_IMAGE="luislhl/docker-python"
+    - PLATFORM="linux/arm64"
+    - DOCKERFILE_PATH="./${TRAVIS_PYTHON_VERSION}/slim-bullseye/Dockerfile"
+
+jobs:
+  include:
+    - arch: arm64
+      dist: focal
+      name: "Build ARM64 Docker Image"
+      script:
+        - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        - docker build --platform $PLATFORM -f $DOCKERFILE_PATH -t $DOCKER_IMAGE:$TRAVIS_PYTHON_VERSION-slim-bullseye .
+        - docker push $DOCKER_IMAGE:$TRAVIS_PYTHON_VERSION-slim-bullseye
